@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, OnInit, computed, effect, signal } from '@angular/core';
 import { FilterType, TodoModel } from '../../models/todo.model';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CommonModule } from '@angular/common';
@@ -10,29 +10,40 @@ import { CommonModule } from '@angular/common';
   templateUrl: './todo.component.html',
   styleUrl: './todo.component.css'
 })
-export class TodoComponent {
-  todolist = signal<TodoModel[]>([
-    {
-      id: 1,
-      title: "ejemplo",
-      completed: false,
-      editing: false
-    },
-    {
-      id: 2,
-      title: "ejemplo 2",
-      completed: true,
-      editing: false
-    },
-    {
-      id: 3,
-      title: "ejemplo 3",
-      completed: false,
-      editing: false
-    },
-  ])
+export class TodoComponent implements OnInit {
+  todolist = signal<TodoModel[]>([])
 
   filter = signal<FilterType>('all')
+
+  todoListFiltered = computed(() => {
+    //cuando this.filter o this.todolist() cambia se dispara esta funcion
+    const filter = this.filter()
+    const todos = this.todolist()
+
+    switch (filter) {
+      case 'active':
+        return todos.filter((todo) => !todo.completed)
+      case 'completed':
+        return todos.filter((todo) => todo.completed)
+      default:
+        return todos
+    }
+
+  })
+
+  constructor() {
+    effect(() => {
+      //cada vez que la señal cambia, se dispara este efecto
+      localStorage.setItem('todos', JSON.stringify(this.todolist()))
+    })
+  }
+
+  ngOnInit() {
+    const storage = localStorage.getItem('todos')
+    if(storage) {
+      this.todolist.set(JSON.parse(storage))
+    }
+  }
 
   newTodo = new FormControl('', {
     nonNullable: true,
@@ -72,6 +83,31 @@ export class TodoComponent {
           : todo;
       })
     );
+  }
+
+  removeTodo(todoId: number) {
+    this.todolist.update((prev_todos) => prev_todos.filter((todo) => todo.id != todoId))
+  }
+
+  updateTodoEditingMode(todoId: number) {
+    return this.todolist.update((prev_todos) =>
+      prev_todos.map((todo) => {
+        return todo.id === todoId
+          ? { ...todo, editing: true }
+          : { ...todo, editing: false };
+      })
+    )
+  }
+
+  saveTitleTodo(todoId: number, event: Event) {
+    const title = (event.target as HTMLInputElement).value
+    return this.todolist.update((prev_todos) =>
+      prev_todos.map((todo) => {
+        return todo.id === todoId
+          ? { ...todo, title: title, editing: false }
+          : todo
+      })
+    )
   }
 
 }
